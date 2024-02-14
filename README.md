@@ -8,7 +8,7 @@ This repository contains a simple web app with a SQLite databse used to test clo
 - The changes in the container are ephemeral, i.e., they disappear when the container is removed.
 - etc.
 
-However, I use this simple example for deployment tests.
+However, I use this simple example for deployment tests; i.e., CICD functionalities are run on the repository to deploy it to different cloud providers using different approaches (e.g., as service, container image, etc.).
 
 The app has two functionalities; when run locally, we can access them as follows:
 
