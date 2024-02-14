@@ -20,7 +20,7 @@ def test_home_page(client):
     """Test that the home page loads correctly."""
     response = client.get('/')
     assert response.status_code == 200
-    assert b'Submit Text' in response.data  # Assuming 'Submit Text' is part of your home page
+    assert b'Submit Text' in response.data
 
 def test_submit_text(client):
     """Test submitting a new text piece."""
