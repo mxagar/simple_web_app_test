@@ -84,4 +84,6 @@ gunicorn -w 4 -k gevent -b 0.0.0.0:8000 app:app
 web: gunicorn -w 4 -k gevent -b 0.0.0.0:5000 app:app
 ```
 
+### Azure Deployment
+
 
