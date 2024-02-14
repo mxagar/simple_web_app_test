@@ -77,9 +77,11 @@ Any [`Procfile`](./Procfile) needs to be set with the correct `app:app` paramete
 web: gunicorn -w 4 -k gevent -b 0.0.0.0:8000 app:app
 ```
 
-### Azure Deployment: App Service
+### Azure Deployment: App Service with Github Integration
 
-Deploying your Flask application to Azure App Service directly from a GitHub repository is a convenient method to automate deployments. This approach is ideal for scenarios where your application doesn't require a containerized environment. Here's how to set it up:
+This method is equivalent to a PaaS Heroku deployment.
+
+Deploying a web application to Azure App Service directly from a GitHub repository is a convenient method to automate deployments. This approach is ideal for scenarios where your application doesn't require a containerized environment. Here's how to set it up:
 
 #### Step 1: Prepare Your Application
 
@@ -120,12 +122,76 @@ web: gunicorn -w 4 -k gevent -b 0.0.0.0:8000 app:app
 5. **Finish the Setup**:
    - Complete the configuration and click "Save".
    - Azure will start the deployment process, pulling the latest commit from the specified branch.
-   - 
+   - The first deployment might fail because the app service is not created yet, but the next ones should work.
 
 #### Step 4: Verify Deployment
 
 - Once the deployment process is complete, you can navigate to your web app's URL (found in the "Overview" section of your Web App resource in the Azure Portal) to see your running Flask application.
-- Future pushes to your selected GitHub branch will trigger automatic deployments to your Azure Web App.
+  - Example: [https://simple-web-app-db.azurewebsites.net/](https://simple-web-app-db.azurewebsites.net/).
+- **Continuous Deployment: Future pushes to your selected GitHub branch will trigger automatic deployments to your Azure Web App!**
+
+The **Continuous Deployment** is achieved by *Github Actions*; a workflow is automatically generated in [`.github/workflows/main_simple-web-app-db.yml`](.github/workflows/main_simple-web-app-db.yml). That workflow has 2 jobs:
+
+- `build`: 
+
+```yaml
+client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_XXX }}
+tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_XXX }}
+subscription-id: ${{ secrets.AZUREAPPSERVICE_XXX }}
+```
+#### Step 5: Tune the Deployment: Adding Tests
+
+```yaml
+      # ...
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run tests
+        run: |
+          source venv/bin/activate
+          pytest
+        # Add this step to run your tests. Make sure 'pytest' is listed in your 'requirements.txt'
+
+      - name: Zip artifact for deployment
+        run: zip release.zip ./* -r
+        # This step will only be reached if the tests pass
+      # ...
+```
+
+```yaml
+   # ...
+   build:
+   # ...
+   test:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python version
+        uses: actions/setup-python@v1
+        with:
+          python-version: '3.9'
+
+      - name: Install dependencies
+        run: |
+          python -m venv venv
+          source venv/bin/activate
+          pip install -r requirements.txt
+
+      - name: Run pytest
+        run: |
+          source venv/bin/activate
+          pytest
+   # ...
+   deploy:
+   #...
+```
+
+#### Step 6: Handle Deployment
+
+Start/Stop
 
 #### Considerations
 

@@ -31,9 +31,15 @@ jobs:
         run: pip install -r requirements.txt
         
       # Optional: Add step to run tests here (PyTest, Django test suites, etc.)
+      - name: Run tests
+        run: |
+          source venv/bin/activate
+          pytest
+        # Add this step to run your tests. Make sure 'pytest' is listed in your 'requirements.txt'
 
       - name: Zip artifact for deployment
         run: zip release.zip ./* -r
+        # This step will only be reached if the tests pass
 
       - name: Upload artifact for deployment jobs
         uses: actions/upload-artifact@v3
