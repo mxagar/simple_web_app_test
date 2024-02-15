@@ -36,6 +36,10 @@ Note that neither exception handling nor logging are implemented &mdash; on purp
       - [Step 4: Verify Deployment](#step-4-verify-deployment)
       - [Step 5: Tune the Deployment: Adding Tests](#step-5-tune-the-deployment-adding-tests)
       - [Step 6: Handle Deployment](#step-6-handle-deployment)
+    - [Azure Deployment: Web App Service with Containers](#azure-deployment-web-app-service-with-containers)
+      - [Step 0: Create an Azure Account](#step-0-create-an-azure-account-1)
+      - [Step 1: Create a Docker Image and Push It to a Registry](#step-1-create-a-docker-image-and-push-it-to-a-registry)
+    - [Step 3: Deploy the Container to Azure App Service](#step-3-deploy-the-container-to-azure-app-service)
 
 
 ## App Structure
@@ -82,7 +86,7 @@ http://127.0.0.1:5000/
 **Option 2: Docker packaging and running:**
 
 ```bash
-# Simple build
+# Simple build: no arguments passed
 docker build -t flask-text-app .
 # If we have a proxy; note that the --build_arg is optional
 docker build --build-arg HTTPS_PROXY=$env:HTTPS_PROXY -t flask-text-app .
@@ -98,6 +102,8 @@ docker run -v instance:/app/instance -p 5000:5000 flask-text-app
 docker ps
 docker stop <id_or_name>
 ```
+
+Note that the [`Dockerfile`](./Dockerfile) I am using not multi-stage, so all the environment variables used in the build process are visible in the final image; maybe, that's not desired.
 
 ## Cloud Deployments
 
@@ -273,4 +279,86 @@ az webapp stop --name simple-web-app-db --resource-group rg-simple-web-app
 
 # Start again the resource simple-web-app-db from resource group rg-simple-web-app
 az webapp start --name simple-web-app-db --resource-group rg-simple-web-app
+
+# Set environment variables in the service while it's running
+az webapp config appsettings set --resource-group <YourResourceGroupName> --name <YourAppServiceName> --settings KEY=VALUE
 ```
+
+### Azure Deployment: Web App Service with Containers
+
+:warning: I have not tested this approach entirely.
+
+#### Step 0: Create an Azure Account
+
+See [Step 0: Create an Azure Account](#step-0-create-an-azure-account) from the previous section.
+
+This section assumes that we have already a resource group; in fact, we should be able to use the one in the previous section [Azure Deployment: Web App Service with Github Integration](#azure-deployment-web-app-service-with-github-integration).
+
+#### Step 1: Create a Docker Image and Push It to a Registry
+
+Create a docker image, as explained in the Option 2 of the section [Setup and Local Running](#setup-and-local-running).
+
+```bash
+# Simple build: no arguments passed
+docker build -t flask-text-app .
+# If we have a proxy; note that the --build_arg is optional
+docker build --build-arg HTTPS_PROXY=$env:HTTPS_PROXY -t flask-text-app .
+```
+
+We can use the Docker Hub registry, if we have an account, or create an Azure Container Registry instance (ACR) in our subscription. However, the ACR is not free, apparently. Also note, that all variables in the image are exposed &mdash; that's maybe relevant if the registry is public.
+
+**Docker Registry**:
+
+```bash
+# Tag image
+docker tag flask-text-app <your-dockerhub-username>/flask-text-app:v1.0.0
+
+# Push the tagged image to Docker Hub
+docker push <your-dockerhub-username>/flask-text-app:v1.0.0
+```
+
+**Azure Container Registry**:
+
+```bash
+az logout
+az login
+
+# Create an ACR instance if you haven't already
+# Note that the name must be available and must have 5-50 alphanumeric characters
+az acr create --resource-group <YourResourceGroupName> --name <RegistryName> --sku Basic
+
+# Log in to ACR
+az acr login --name <RegistryName>
+
+# Tag your image with the ACR login server name
+docker tag flask-text-app <RegistryName>.azurecr.io/flask-text-app
+
+# Push the image to ACR
+docker push <RegistryName>.azurecr.io/flask-text-app
+```
+
+### Step 3: Deploy the Container to Azure App Service
+
+```bash
+# If we don't have one, we create a service plan
+az appservice plan create --name <YourAppServicePlan> --resource-group <YourResourceGroupName> --sku S1 --is-linux
+
+# Create a Web App with container support
+az webapp create --resource-group <YourResourceGroupName> --plan <YourAppServicePlan> --name <YourAppServiceName> --deployment-container-image-name <your-dockerhub-username>/flask-text-app:latest
+# Replace <your-dockerhub-username>/flask-text-app:latest
+# with your ACR image path if using ACR: <RegistryName>.azurecr.io/flask-text-app:latest
+
+# If using ACR, configure the Web App to use ACR credentials
+az webapp config container set --name <YourAppServiceName> --resource-group <YourResourceGroupName> --docker-custom-image-name <RegistryName>.azurecr.io/flask-text-app:latest --docker-registry-server-url https://<RegistryName>.azurecr.io --docker-registry-server-user <ACRUsername> --docker-registry-server-password <ACRPassword>
+# The username and the password can be obtained using access Keys:
+# - Navigate to the Azure Container Registry resource in the Azure portal.
+# - Select "Access keys" under "Settings".
+# - Check "admin user"
+# - Here, we can find the "Username" and two valid access keys ("passwords").
+
+# Configure the port your app runs on (if different from the default 80)
+az webapp config appsettings set --resource-group <YourResourceGroupName> --name <YourAppServiceName> --settings WEBSITES_PORT=5000
+```
+
+Now the Flask app, containerized and stored in a Docker registry, should be deployed and running on Azure App Service. We can access it using the URL provided by Azure for your Web App, typically `https://<YourAppServiceName>.azurewebsites.net`.
+
